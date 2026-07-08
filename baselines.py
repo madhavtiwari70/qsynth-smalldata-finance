@@ -40,6 +40,9 @@ class BernoulliBaseline:
         self.class_probs_: Optional[Dict] = None
         self.class_weights_: Optional[Dict] = None
         self.is_fitted_ = False
+        # A single RNG instance advances across calls, so repeated calls to
+        # sample() draw new data instead of replaying the same output.
+        self._rng = np.random.default_rng(random_seed)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BernoulliBaseline":
         """
@@ -85,7 +88,6 @@ class BernoulliBaseline:
         y_synthetic : ndarray (n_samples,)
         """
         self._check_fitted()
-        rng = np.random.default_rng(self.random_seed)
 
         if class_label is not None:
             labels_to_sample = {class_label: n_samples}
@@ -105,13 +107,13 @@ class BernoulliBaseline:
             if n_c == 0:
                 continue
             probs = self.class_probs_[c]
-            X_c = (rng.random((n_c, len(probs))) < probs).astype(float)
+            X_c = (self._rng.random((n_c, len(probs))) < probs).astype(float)
             all_X.append(X_c)
             all_y.append(np.full(n_c, c))
 
         X_synthetic = np.vstack(all_X)
         y_synthetic = np.concatenate(all_y)
-        perm = rng.permutation(len(X_synthetic))
+        perm = self._rng.permutation(len(X_synthetic))
         return X_synthetic[perm], y_synthetic[perm]
 
     def _check_fitted(self):

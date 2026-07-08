@@ -4,7 +4,7 @@ setup(
     name="iqp-finance-synth",
     version="0.1.0",
     description="Quantum Generative Models for Financial Synthetic Data using IQP Circuits",
-    author="Your Name",
+    author="Madhav Tiwari",
     license="MIT",
     packages=find_packages(),
     python_requires=">=3.9",
@@ -17,7 +17,10 @@ setup(
         "jax>=0.4",
         "jaxlib>=0.4",
         "pennylane>=0.35",
-        "iqpopt>=0.1",
+        # iqpopt is NOT on PyPI — it must be installed separately from source:
+        #   pip install git+https://github.com/XanaduAI/iqpopt.git
+        # See README "Installation" section. It is intentionally left out of
+        # install_requires so `pip install -e .` doesn't fail on this line.
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

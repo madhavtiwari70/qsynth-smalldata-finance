@@ -104,6 +104,9 @@ class IQPFinanceGenerator:
         self.collapse_threshold = collapse_threshold
         self.random_seed = random_seed
         self.verbose = verbose
+        # Persistent RNG for sampling, so runs are reproducible from
+        # random_seed but successive sample() calls still draw new data.
+        self._sample_rng = np.random.default_rng(random_seed)
 
         # Fitted attributes
         self.classes_: Optional[np.ndarray] = None
@@ -286,9 +289,9 @@ class IQPFinanceGenerator:
 
             # Subsample to requested count
             if n_c <= len(X_pool):
-                idx = np.random.choice(len(X_pool), n_c, replace=False)
+                idx = self._sample_rng.choice(len(X_pool), n_c, replace=False)
             else:
-                idx = np.random.choice(len(X_pool), n_c, replace=True)
+                idx = self._sample_rng.choice(len(X_pool), n_c, replace=True)
                 warnings.warn(
                     f"Requested {n_c} samples but only {len(X_pool)} unique circuit "
                     "outputs — sampling with replacement.",
@@ -301,7 +304,7 @@ class IQPFinanceGenerator:
         y_synthetic = np.concatenate(all_y)
 
         # Shuffle
-        perm = np.random.permutation(len(X_synthetic))
+        perm = self._sample_rng.permutation(len(X_synthetic))
         X_synthetic = X_synthetic[perm]
         y_synthetic = y_synthetic[perm]
 

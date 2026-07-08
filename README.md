@@ -33,9 +33,15 @@ cd iqp-finance-synth
 pip install -e .
 ```
 
-**Dependencies:**
+**IQPopt (required, not on PyPI):**
+IQPopt is distributed from source only, so it must be installed separately:
 ```bash
-pip install iqpopt pennylane jax jaxlib numpy pandas scikit-learn matplotlib seaborn
+pip install git+https://github.com/XanaduAI/iqpopt.git
+```
+
+**Other dependencies** (installed automatically by `pip install -e .`, listed here for reference):
+```bash
+pip install pennylane jax jaxlib numpy pandas scikit-learn matplotlib seaborn
 ```
 
 ---
@@ -51,7 +57,7 @@ df = pd.read_csv("your_fraud_data.csv")
 
 # 2. Preprocess — binarize financial features
 preprocessor = FinancialDataPreprocessor(
-    n_qubits=16,          # circuit size (must be perfect square for image layout)
+    n_qubits=16,          # number of qubits / binary feature dimensions
     binarize_method="quantile",  # "quantile", "threshold", or "zscore"
     n_quantiles=4         # discretize into 4 bins per feature
 )
@@ -144,16 +150,16 @@ We evaluate using:
 
 ---
 
-## Key Finding: Sample Complexity
+## Sample Complexity Analysis
 
-A core result of this project is the **minimum dataset size** needed for the IQP circuit to learn a given class distribution. We find that for 16-qubit circuits with 3-local gates:
+A core feature of this project is `SampleComplexityAnalyzer`, a tool for finding the **minimum training dataset size** needed for an IQP circuit to learn a given class distribution well, by measuring MMD² against the full class distribution across a range of training-set sizes.
 
 ```
-n = 50–100 samples is typically sufficient
-n > 200 samples yields diminishing returns
+analyzer = SampleComplexityAnalyzer(dataset_sizes=[10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500])
+results = analyzer.run(X_binary, y, generator_config)
 ```
 
-This makes IQP circuits particularly attractive for financial applications where labelled data is scarce.
+On the toy fraud-detection dataset used in `examples/fraud_detection.py`, quality plateaus somewhere in the 50–200 sample range, but **this has not yet been validated on a real financial dataset** — treat it as a starting point for your own analysis, not a general claim. Note also that in the current implementation the training subsample is drawn from (and evaluated against) the same full class sample, so results should be read as an indicative curve rather than a held-out generalization estimate.
 
 ---
 
