@@ -112,8 +112,8 @@ iqp-finance-synth/
 ├── examples/
 │   ├── __init__.py
 │   └── fraud_detection.py   # Credit card fraud example (the only example currently implemented)
-├── notebooks/
-│   └── tutorial.ipynb       # Full walkthrough notebook
+├── results/
+│   └── fraud_dataset_results.ipynb       # Full walkthrough notebook
 ├── tests/
 │   └── test_pipeline.py
 └── README.md
