@@ -1,4 +1,4 @@
-# IQP-FinanceSynth
+#  IQP-FinanceSynth
 
 **Quantum Generative Models for Financial Synthetic Data**
 
@@ -87,12 +87,14 @@ evaluator.plot_results(results)
 
 ## Use Cases
 
-| Use Case | Dataset Size | Why IQP Helps |
-|---|---|---|
-| Fraud detection | 50–500 fraud cases | Augment rare fraud class |
-| Credit default | 100–300 defaults | Small emerging market datasets |
-| Stress testing | 20–100 crisis events | Historical crises are rare |
-| Options pricing | 50–200 exotic trades | Rare instrument transactions |
+The table below describes use cases this approach generalizes to conceptually. **Only fraud detection is currently implemented** (`examples/fraud_detection.py`, with results in the [Results](#results) section below) — the others are potential applications, not delivered examples.
+
+| Use Case | Dataset Size | Why IQP Helps | Status |
+|---|---|---|---|
+| Fraud detection | 50–500 fraud cases | Augment rare fraud class | ✅ Implemented |
+| Credit default | 100–300 defaults | Small emerging market datasets | 🔲 Not yet implemented |
+| Stress testing | 20–100 crisis events | Historical crises are rare | 🔲 Not yet implemented |
+| Options pricing | 50–200 exotic trades | Rare instrument transactions | 🔲 Not yet implemented |
 
 ---
 
@@ -108,9 +110,8 @@ iqp-finance-synth/
 │   ├── baselines.py         # Classical comparison models
 │   └── sample_complexity.py # Minimum dataset size analysis
 ├── examples/
-│   ├── fraud_detection.py   # Credit card fraud example
-│   ├── credit_default.py    # Loan default example
-│   └── stress_testing.py    # Market stress scenario example
+│   ├── __init__.py
+│   └── fraud_detection.py   # Credit card fraud example (the only example currently implemented)
 ├── notebooks/
 │   └── tutorial.ipynb       # Full walkthrough notebook
 ├── tests/
@@ -124,13 +125,30 @@ iqp-finance-synth/
 
 ### 1. Binarization of Financial Features
 
-Financial data is continuous — stock returns, credit scores, transaction amounts. We convert these to binary vectors suitable for IQP circuits:
+Financial data is continuous — transaction amounts, credit scores, returns. `FinancialDataPreprocessor` converts each feature into a fixed number of bits, then concatenates all features into one binary vector of length `n_qubits`. Three encoding methods are supported, and they use **different numbers of bits per feature**:
+
+| Method | Bits per feature | How it works |
+|---|---|---|
+| `"quantile"` | `log2(n_quantiles)` (e.g. 2 bits if `n_quantiles=4`) | Bin the feature into `n_quantiles` equal-frequency bins, then binary-encode the bin index |
+| `"threshold"` | 1 | 1 if the value is above the feature's median (from training data), else 0 |
+| `"zscore"` | 1 | 1 if the value is above the feature's mean (z-score > 0), else 0 |
+
+**Worked example — `binarize_method="quantile"`, `n_quantiles=4`** (the library default, so 2 bits per feature, 4 possible bins: `00, 01, 10, 11`):
 
 ```
-Transaction amount $847  →  quantile bin 3  →  binary [0,1,1,0]
-Credit score 712         →  quantile bin 2  →  binary [0,1,0,0]
-Return -2.3%             →  below median    →  binary [0]
+Transaction amount $847  →  falls in bin 3 of 4  →  encoded as  11
+Credit score 712         →  falls in bin 1 of 4  →  encoded as  01
 ```
+
+These 2-bit chunks are concatenated feature-by-feature until `n_qubits` is filled — e.g. with `n_qubits=16` and 2 bits/feature, the first **8 features** each contribute 2 bits to the vector (`FinancialDataPreprocessor` warns and truncates if you pass more features than fit, and zero-pads if you pass fewer bits than `n_qubits`).
+
+**Worked example — `binarize_method="threshold"`** (1 bit per feature, so up to 16 features fit into 16 qubits):
+
+```
+Return -2.3%  →  below this feature's median  →  encoded as  0
+```
+
+`inverse_transform()` reverses this mapping approximately: quantile bins are decoded back to their bin midpoint, and threshold/zscore bits are decoded back to median/mean ± a spread — these are reconstructions from the binary code, not the original continuous values, since binarization is lossy by construction.
 
 ### 2. IQP Circuit Training
 
