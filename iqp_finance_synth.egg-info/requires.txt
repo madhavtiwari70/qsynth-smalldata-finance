@@ -1,0 +1,8 @@
+numpy>=1.23
+pandas>=1.5
+scikit-learn>=1.1
+matplotlib>=3.5
+seaborn>=0.12
+jax>=0.4
+jaxlib>=0.4
+pennylane>=0.35

@@ -14,13 +14,13 @@
 
 Financial machine learning suffers from a fundamental problem: **small datasets**. Fraud detection, rare event modelling, credit scoring for emerging markets, and stress testing all require data that is either scarce, private, or expensive to collect.
 
-Classical synthetic data generators (GANs, VAEs, RBMs) struggle with small datasets because they need large amounts of data to avoid overfitting. IQP circuits offer a different approach — they are trained on the **MMD loss** using an efficient classical algorithm, require surprisingly few samples to converge, and can be deployed on quantum hardware for sampling where classical simulation becomes hard.
+Classical synthetic data generators (GANs, VAEs, RBMs) struggle with small datasets because they need large amounts of data to avoid overfitting. IQP circuits offer a different approach — they are trained on the **MMD loss** using an efficient classical algorithm and can be deployed on quantum hardware for sampling where classical simulation becomes hard. How few samples they actually need to converge turns out to depend heavily on the class — see [Results](#results) below for a concrete, measured breakdown rather than a general claim.
 
 This project implements IQP-based synthetic data generation specifically for financial tabular data, with:
 - Binarization pipelines designed for financial features (returns, volatility, volume, credit scores)
 - Per-class generation (e.g. fraud vs non-fraud, default vs non-default)
 - Sample complexity analysis — find the minimum dataset size you actually need
-- MMD² and KGEL evaluation metrics
+- MMD² evaluation metrics (mode-collapse detection is on the roadmap, not yet implemented)
 - Classical baselines (Bernoulli, RBM) for comparison
 
 ---
@@ -104,7 +104,7 @@ iqp-finance-synth/
 │   ├── __init__.py
 │   ├── preprocessor.py      # Financial data binarization
 │   ├── generator.py         # IQP circuit training & sampling
-│   ├── evaluator.py         # MMD², KGEL, statistical tests
+│   ├── evaluator.py         # MMD², correlation, TSTR/TRTR statistical tests
 │   ├── baselines.py         # Classical comparison models
 │   └── sample_complexity.py # Minimum dataset size analysis
 ├── examples/
@@ -143,23 +143,64 @@ The trained circuit parameters are used to generate new binary samples, which ar
 ### 4. Quality Evaluation
 
 We evaluate using:
-- **MMD²** — distributional distance between real and synthetic
-- **KGEL** — detects mode collapse and mode imbalance  
+- **MMD²** — distributional distance between real and synthetic (overall and per-class)
 - **Correlation matrix comparison** — checks if feature relationships are preserved
-- **Downstream task performance** — train/test a classifier on synthetic vs real data
+- **Downstream task performance (TSTR / TRTR)** — train/test a classifier on synthetic vs real data
+- **Class balance** — synthetic class proportions vs real
+- **Feature parity** — per-feature bit-density comparison
+
+> Note: mode-collapse detection (e.g. via KGEL) is not yet implemented — `IQPFinanceGenerator` currently only does a basic unique-sample-count heuristic during sampling. Treat this as a known gap, not a delivered feature.
 
 ---
 
-## Sample Complexity Analysis
+## Results
 
-A core feature of this project is `SampleComplexityAnalyzer`, a tool for finding the **minimum training dataset size** needed for an IQP circuit to learn a given class distribution well, by measuring MMD² against the full class distribution across a range of training-set sizes.
+Ran on the demo fraud dataset (`generate_demo_fraud_data`: 500 normal transactions, 50 fraud transactions), 16 qubits, `local_gates=3`, `sigma=3.0`.
 
-```
-analyzer = SampleComplexityAnalyzer(dataset_sizes=[10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500])
-results = analyzer.run(X_binary, y, generator_config)
-```
+### Synthetic data quality (IQP generator)
 
-On the toy fraud-detection dataset used in `examples/fraud_detection.py`, quality plateaus somewhere in the 50–200 sample range, but **this has not yet been validated on a real financial dataset** — treat it as a starting point for your own analysis, not a general claim. Note also that in the current implementation the training subsample is drawn from (and evaluated against) the same full class sample, so results should be read as an indicative curve rather than a held-out generalization estimate.
+| Metric | Value | Interpretation |
+|---|---|---|
+| Overall MMD² | 0.00200 | Lower = more similar distributions |
+| MMD² — class 0 (normal) | ≈0 (raw unbiased estimate slightly negative, ~−0.00017) | Estimator noise around a well-fit distribution |
+| MMD² — class 1 (fraud) | 0.1228 | Meaningfully worse fit than class 0 — see Sample Complexity below |
+| Correlation similarity | 0.6449 | 1.0 = identical correlation structure; moderate, not strong, preservation of feature relationships |
+| TSTR AUC (train-on-synthetic, test-on-real) | 0.9964 | |
+| TRTR AUC (train-on-real, test-on-real) | 1.0 | |
+
+**Caveat on the AUC numbers:** the demo dataset's fraud class is constructed to be trivially separable (fraud transactions are large, late-night, far-from-home, and high-velocity by design — see `generate_demo_fraud_data`). Near-perfect AUC here reflects an easy classification task, not evidence the synthetic data will be similarly informative on a real, harder fraud dataset. Re-run this evaluation against real or less-separable data before treating the AUC gap (or lack thereof) as a meaningful result.
+
+A classical `BernoulliBaseline` comparison is available in the pipeline (`examples/fraud_detection.py`, Step 4) but hasn't been included here yet — run it alongside the IQP results before citing this as evidence the quantum circuit adds value over the simplest possible baseline. *(TODO: fill in Bernoulli MMD²/AUC once run.)*
+
+### Sample complexity — how much training data does the circuit actually need?
+
+`SampleComplexityAnalyzer` was run on `dataset_sizes=[10, 25, 50, 100, 150, 200]`, `n_seeds=3`, `ratio_threshold=1.5`.
+
+**Class 0 (normal, 500 real samples available):**
+
+| n | MMD² |
+|---|---|
+| 10 | 0.0110 |
+| 25 | 0.0074 |
+| 50 | 0.0028 |
+| 100 | 0.0013 |
+| 150 | 0.00060 |
+| 200 | 0.00051 |
+
+MMD² decreases steadily and monotonically as training data grows. Minimum sufficient training size (within 1.5× of the n=200 result): **n = 150**.
+
+**Class 1 (fraud, only 50 real samples available):**
+
+| n | MMD² |
+|---|---|
+| 10 | 0.1523 |
+| 25 | 0.1524 |
+| 50 | 0.1534 |
+| 100+ | not enough real data to test |
+
+MMD² is essentially flat (~0.152) across every size actually tested — it does **not** improve as training data increases from 10 to 50. This is a different, more specific finding than "the model needs more data": within the range we *can* test, more data isn't helping, which points toward a fitting/capacity limitation (gate depth, training steps, learning rate) rather than a pure data-scarcity problem. We can't yet say whether more real fraud data would help, because we only have 50 real fraud samples to test with — which is itself the scarcity problem this project exists to address.
+
+**Methodology note:** "minimum sufficient n" is computed as a ratio against the MMD² at the largest swept size (`n_max`, here 200). A class with fewer real samples than `n_max` (like fraud, at 50) can never reach that normalization point, so `minimum_n` comes back as `None` for it by construction — this is a limitation of the current ratio-based method, not evidence the class never converges. Interpreting a class's row in this table requires checking it actually has data out to `n_max` first.
 
 ---
 

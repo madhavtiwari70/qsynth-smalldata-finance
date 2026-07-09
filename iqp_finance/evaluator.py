@@ -179,8 +179,12 @@ class SyntheticEvaluator:
         ax1.axhline(0, color="black", linewidth=0.8, linestyle="--", alpha=0.5)
         for bar, val in zip(bars, mmd_vals):
             if not np.isnan(val):
+                # Very small MMD² values round to "0.0000" at 4 decimals, which
+                # reads as exactly zero even when it isn't — use scientific
+                # notation below a threshold so the true magnitude is visible.
+                label = f"{val:.2e}" if val < 1e-3 else f"{val:.4f}"
                 ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                         f"{val:.4f}", ha="center", va="bottom", fontsize=9)
+                         label, ha="center", va="bottom", fontsize=9)
         ax1.grid(True, alpha=0.3, axis="y")
 
         # Panel 2: Feature parity

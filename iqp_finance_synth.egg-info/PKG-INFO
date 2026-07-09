@@ -1,0 +1,27 @@
+Metadata-Version: 2.4
+Name: iqp-finance-synth
+Version: 0.1.0
+Summary: Quantum Generative Models for Financial Synthetic Data using IQP Circuits
+Author: Madhav Tiwari
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.9
+Requires-Python: >=3.9
+Requires-Dist: numpy>=1.23
+Requires-Dist: pandas>=1.5
+Requires-Dist: scikit-learn>=1.1
+Requires-Dist: matplotlib>=3.5
+Requires-Dist: seaborn>=0.12
+Requires-Dist: jax>=0.4
+Requires-Dist: jaxlib>=0.4
+Requires-Dist: pennylane>=0.35
+Dynamic: author
+Dynamic: classifier
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
