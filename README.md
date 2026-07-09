@@ -1,4 +1,4 @@
-# 🔬 IQP-FinanceSynth
+# IQP-FinanceSynth
 
 **Quantum Generative Models for Financial Synthetic Data**
 
